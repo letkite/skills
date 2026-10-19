@@ -1,0 +1,10 @@
+{
+  "name": "letkite",
+  "version": "0.1.0",
+  "description": "Skills for LetKite users: build and run fleets and agent pools on your own machines.",
+  "author": { "name": "LetKite", "url": "https://letkite.com" },
+  "homepage": "https://github.com/letkite/skills",
+  "repository": "https://github.com/letkite/skills",
+  "license": "MIT",
+  "keywords": ["letkite", "mcp", "fleet", "claude-code", "workers"]
+}

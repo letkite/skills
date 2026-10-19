@@ -1,0 +1,23 @@
+name: check
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint skills and plugins
+        run: |
+          sudo apt-get install -y -qq shellcheck > /dev/null
+          python3 tools/check.py
+      - name: claude plugin validate
+        run: |
+          npm install -g --silent @anthropic-ai/claude-code
+          claude plugin validate .
+          for p in plugins/*/; do claude plugin validate "$p" --strict; done
+      - name: Package
+        run: tools/package.sh

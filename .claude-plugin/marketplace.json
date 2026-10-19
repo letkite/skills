@@ -1,0 +1,13 @@
+{
+  "name": "letkite",
+  "owner": { "name": "LetKite", "url": "https://github.com/letkite" },
+  "description": "Agent Skills for working with LetKite: run commands, files and AI agents across your own machines.",
+  "plugins": [
+    {
+      "name": "letkite",
+      "source": "./plugins/letkite",
+      "description": "Skills for LetKite users: build and run fleets and agent pools on your own machines.",
+      "category": "devops"
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# ccw: drive the Claude Code workers on this machine (installed by setup-worker.sh; run as root).
+#   ccw [status]               table: worker, Claude auth, LetKite MCP, GitHub, running claude processes
+#   ccw <worker>               login shell as the worker, in ~/src
+#   ccw <worker> '<command>'   run one command as the worker in ~/src, e.g.
+#                              ccw ccw-01 'cd myrepo && claude -p "..." --model sonnet --output-format json'
+#   ccw key <worker>           store an Anthropic API key for the worker (hidden prompt, checked against the API)
+#   ccw key <worker> --remove  delete it and go back to Claude account sign-in
+set -euo pipefail
+LIST="${CCW_LIST:-/etc/ccw/workers}"
+MCP_NAME="${CCW_MCP_NAME:-letkite}"
+[[ $EUID -eq 0 ]] || { echo "run as root: sudo ccw $*" >&2; exit 1; }
+[[ -f $LIST ]] || { echo "no workers yet ($LIST): run setup-worker.sh" >&2; exit 1; }
+
+home_of() { getent passwd "$1" | cut -d: -f6; }
+is_worker() { grep -qx -- "$1" "$LIST" || { echo "$1 is not a worker (see $LIST)" >&2; exit 1; }; }
+as() { local w="$1" h; shift; h="$(home_of "$w")"; (cd "$h" && runuser -u "$w" -- env HOME="$h" "$@"); }
+
+# Claude auth: "key" when an API key is stored and wired up, else what `claude auth status` says.
+auth_of() {
+  local w="$1" h; h="$(home_of "$w")"
+  if [[ -s $h/.config/ccw/anthropic-key ]] && grep -qs apiKeyHelper "$h/.claude/settings.json"; then echo key; return; fi
+  { as "$w" sh -c 'cd ~ && timeout 20 claude auth status 2>/dev/null' || true; } | node -e '
+    let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
+      try { const j = JSON.parse(s.slice(s.indexOf("{"))); console.log(j.loggedIn ? (j.authMethod === "claude.ai" ? "login" : (j.authMethod || "login")) : "no"); }
+      catch (e) { console.log("no"); } });' 2> /dev/null || echo no
+}
+
+# LetKite MCP: signed in when the OAuth entry for the server has a token (an entry also exists before sign-in).
+mcp_of() {
+  local h; h="$(home_of "$1")"
+  node -e '
+    try {
+      const c = require(process.argv[1]).mcpOAuth || {};
+      console.log(Object.values(c).some(v => v.serverName === process.argv[2] && v.accessToken) ? "yes" : "no");
+    } catch (e) { console.log("no"); }' "$h/.claude/.credentials.json" "$MCP_NAME" 2> /dev/null || echo no
+}
+
+status() {
+  printf '%-12s %-6s %-5s %-5s %s\n' worker auth mcp gh running
+  while read -r w; do
+    [[ -n $w ]] || continue
+    local gh=no
+    command -v gh > /dev/null && as "$w" gh auth status > /dev/null 2>&1 && gh=yes
+    printf '%-12s %-6s %-5s %-5s %s\n' "$w" "$(auth_of "$w")" "$(mcp_of "$w")" "$gh" \
+      "$(pgrep -u "$w" -c -f 'claude-code|bin/claude' || true)"
+  done < "$LIST"
+}
+
+# worker's ~/.claude/settings.json: set or drop apiKeyHelper, keep everything else
+helper() {
+  as "$1" node -e '
+    const fs = require("fs"), p = process.env.HOME + "/.claude/settings.json";
+    let d = {}; try { d = JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) {}
+    if (process.argv[1] === "on") d.apiKeyHelper = "/usr/local/libexec/ccw-key-helper"; else delete d.apiKeyHelper;
+    fs.mkdirSync(process.env.HOME + "/.claude", { recursive: true });
+    fs.writeFileSync(p + ".new", JSON.stringify(d, null, 2) + "\n"); fs.renameSync(p + ".new", p);' "$2"
+}
+
+key() {
+  local w="${1:?usage: ccw key <worker> [--remove]}" k code; is_worker "$w"
+  if [[ ${2:-} == --remove ]]; then
+    helper "$w" off; as "$w" rm -f "$(home_of "$w")/.config/ccw/anthropic-key"
+    echo "$w: API key removed; sign in with: ccw $w 'claude auth login --claudeai'"; return
+  fi
+  read -r -s -p "Anthropic API key for $w (hidden): " k; echo
+  k="${k//[$' \t\r\n']/}"
+  [[ $k =~ ^sk-ant-[A-Za-z0-9_-]{20,}$ ]] || { echo "that does not look like an Anthropic key (got ${#k} characters)" >&2; exit 1; }
+  # written by the worker itself, never as root into the worker's home
+  printf '%s\n' "$k" | as "$w" sh -c 'umask 077; mkdir -p ~/.config/ccw &&
+    cat > ~/.config/ccw/anthropic-key.new && mv -f ~/.config/ccw/anthropic-key.new ~/.config/ccw/anthropic-key'
+  unset k
+  # the format changes over time, so ask the API instead of guessing from the prefix (listing models costs nothing)
+  code="$(as "$w" sh -c 'printf "x-api-key: %s\n" "$(cat ~/.config/ccw/anthropic-key)" |
+    curl -sS -o /dev/null -w "%{http_code}" -m 20 -H @- -H "anthropic-version: 2023-06-01" https://api.anthropic.com/v1/models' || true)"
+  if [[ $code == 200 ]]; then
+    helper "$w" on; echo "$w: key stored and accepted by the API"
+  else
+    as "$w" rm -f "$(home_of "$w")/.config/ccw/anthropic-key"
+    echo "$w: the API refused the key (HTTP ${code:-no answer}); nothing stored. 401: wrong or not an API key; 403: account not enabled or no credit" >&2
+    exit 1
+  fi
+}
+
+case "${1:-status}" in
+  status) status ;;
+  key) shift; key "$@" ;;
+  -h|--help) sed -n '2,8p' "$0" ;;
+  *)
+    w="$1"; shift; is_worker "$w"
+    if [[ $# -eq 0 ]]; then exec runuser -l "$w" -c 'mkdir -p ~/src && cd ~/src && exec bash -l'; fi
+    exec runuser -l "$w" -c "mkdir -p ~/src && cd ~/src && $*"
+    ;;
+esac
