@@ -1,6 +1,6 @@
 ---
 name: dev-env
-description: Set up a developer environment on a machine after it joins LetKite, letting the person choose each piece - git identity; GitHub access by GitHub CLI sign-in, by a token kept in a LetKite environment variable (never written to disk), by a stored token, or by SSH key; tokens for other git hosts such as GitLab, GitCode or Gitea; Claude Code; and OpenCode. Probes what is already there first, asks which pieces and which method, keeps secrets out of chat, and verifies each piece. Use when asked to set up git, gh, GitHub or GitCode tokens, Claude Code or OpenCode on a LetKite node, to prepare a new node for development, or to fix git credentials on one.
+description: Set up a developer environment on a machine after it joins LetKite, letting the person choose each piece - git identity; GitHub access by GitHub CLI sign-in, by a token kept in a LetKite environment variable (never written to disk), by a stored token, or by SSH key; tokens for other git hosts such as GitLab, GitCode or Gitea; Claude Code; OpenCode; and connecting Claude Code or OpenCode to LetKite (MCP) with the machine's own authorization. Probes what is already there first, asks which pieces and which method, keeps secrets out of chat, and verifies each piece. Use when asked to set up git, gh, GitHub or GitCode tokens, Claude Code, OpenCode or a LetKite MCP connection on a LetKite node, to prepare a new node for development, or to fix git credentials on one.
 license: MIT
 compatibility: Requires a LetKite connection (MCP tools such as list_hosts, host_facts, exec, write_file, terminal_open, terminal_ask). Target machines run Linux (tested on Ubuntu 24.04) or macOS; installing the GitHub CLI needs root or sudo.
 ---
@@ -16,6 +16,7 @@ You set up one **user** on one **node** for development: git, access to git host
   - **`terminal_ask`**: run the program in `terminal_open`, call `terminal_ask`, and the person types into the LetKite console. You see the program's output, never the secret.
 - **Never put a secret in a command line, a file you write, or your own output.** Check token variables by name and length only.
 - **Send long sign-in URLs as a small HTML page or file**, not in chat (they get cut or filtered). Call `terminal_ask` right away, because CLIs waiting for a code time out within minutes.
+- **One `terminal_ask` per prompt.** If your call times out or you lose track, first call `terminal_read` to see whether the program already got its answer, and only then ask again. Otherwise a second paste lands in the shell and runs as a command.
 - **Work as the right user.** LetKite runs commands as the node's default user (agent 1.6.1 and later: `letkite-agent [--instance dev] set-user <name>`, as root). Everything here goes into that user's home. Installing system packages needs root or sudo; if `sudo` asks for a password, give the person the exact command instead.
 - **Look before changing.** Run `host_facts`, then `scripts/probe-env.sh`, and only offer what is missing or broken.
 
@@ -44,6 +45,7 @@ Offer the pieces as a checklist; the person picks any subset. For each picked pi
 | **D. Claude Code** | install; then sign in with a Claude subscription or an API key; optionally connect it to LetKite |
 | **E. OpenCode** | install; then sign in to a model provider |
 | **F. GitHub CLI** | install `gh` (needed for B1 and B3, handy for B2) |
+| **G. connect to LetKite (MCP)** | give this machine's Claude Code and/or OpenCode their **own** LetKite connection, so agents here can use LetKite's tools; ask which gateway (production or dev) and which tools |
 
 GitHub methods: help the person choose.
 
@@ -54,11 +56,16 @@ GitHub methods: help the person choose.
 | **B3. Token typed once, stored by gh** (`gh auth login --with-token`) | `~/.config/gh/hosts.yml` (or the keyring) | a token the person already has, on a machine they own |
 | **B4. SSH key** | a key pair in `~/.ssh`, public half added to GitHub | people who clone with `git@github.com:`; no token at all |
 
+For G, explain before starting:
+- The machine gets its **own** authorization. On the LetKite approval page the person picks which nodes and which policy this machine's agents may use; that can be far less than their own connection.
+- If Claude Code here is signed in with the person's **own claude.ai account**, it already inherits every connector on that account. `claude mcp list` shows them as `claude.ai <name>`. That may include LetKite with the person's full access, cloud consoles, payments or email.
+- Offer to turn those off for this user with `"disableClaudeAiConnectors": true` in `~/.claude/settings.json`; servers added with `claude mcp add` keep working.
+
 With B2, git and `gh` work in shells LetKite starts (`exec`, `terminal_open`, jobs) and in the programs they start, such as Claude Code run from a LetKite terminal. A plain SSH login that bypasses LetKite has no such variable. Say so if the person also logs in that way.
 
 ## Step 3: set up each piece
 
-Do the picked pieces in the order F, A, B, C, D, E. The exact commands are in the references:
+Do the picked pieces in the order F, A, B, C, D, E, G. The exact commands are in the references:
 
 - **F, A, B, C**: [references/git-access.md](references/git-access.md). For B2 and C, use [scripts/git-token-helper.sh](scripts/git-token-helper.sh):
   ```
@@ -66,7 +73,7 @@ Do the picked pieces in the order F, A, B, C, D, E. The exact commands are in th
   git-token-helper.sh --host gitcode.com --env GITCODE_TOKEN --user <their GitCode account>
   ```
   It makes git read the token from the variable when it needs it. Nothing secret is written to disk. A global `store` helper is bypassed for that host, so the token is never copied to `~/.git-credentials`.
-- **D, E**: [references/agents.md](references/agents.md).
+- **D, E, G**: [references/agents.md](references/agents.md).
 
 Use `exec` for non-interactive steps and `terminal_open` with `terminal_ask` for anything that asks for a secret or a code.
 
@@ -83,6 +90,7 @@ Run `probe-env.sh` again, then a real check for each piece:
 | C | `git ls-remote https://<host>/<owner>/<private repo>.git HEAD` exits 0 |
 | D | `claude --version`, and `claude auth status` shows `"loggedIn": true` |
 | E | `opencode --version`, and `opencode auth list` lists the provider |
+| G | `claude mcp get <name>` shows `✔ Connected`, and a real call works: `claude -p --allowedTools=mcp__<name>__list_hosts "Call list_hosts on <name> and list the aliases"`. For OpenCode: `opencode mcp list` |
 
 Check the exit code, not just the output: a pipe like `git ls-remote ... | cut` hides a failure.
 

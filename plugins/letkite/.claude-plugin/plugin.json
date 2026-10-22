@@ -1,6 +1,6 @@
 {
   "name": "letkite",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Skills for LetKite users: build and run fleets and agent pools on your own machines.",
   "author": { "name": "LetKite", "url": "https://letkite.com" },
   "homepage": "https://github.com/letkite/skills",
