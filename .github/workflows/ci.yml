@@ -9,7 +9,7 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Lint skills and plugins
         run: |
           sudo apt-get install -y -qq shellcheck > /dev/null
