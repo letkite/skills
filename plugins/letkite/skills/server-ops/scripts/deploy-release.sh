@@ -20,8 +20,9 @@ Run it as the deploy account (the one that owns the app's directory). Layout und
   --app NAME       the app's name; also the default base directory /srv/NAME
   --from DIR       a built release: its contents are copied (without .git) into a new release
   --service UNIT   a systemd unit to restart after switching (repeat for several). Uses
-                   `sudo -n systemctl restart UNIT`: give the deploy account a sudoers line for exactly
-                   that (references/deploy-app.md). None: nothing is restarted (static files only)
+                   `sudo -n systemctl reset-failed UNIT` and `sudo -n systemctl restart UNIT`: give the
+                   deploy account a sudoers line for exactly those (references/deploy-app.md). None:
+                   nothing is restarted (static files only)
   --health URL     after the restart, GET this URL until it answers 2xx (60 s at most); if it never
                    does, switch back to the release before and restart again, then exit 1
   --keep N         releases to keep, the live one included (default 5)
@@ -62,7 +63,9 @@ switch_to() {   # atomic: a new link, renamed over the old one
 restart() {
   local u
   for u in ${SERVICES[@]+"${SERVICES[@]}"}; do
-    sudo -n systemctl restart "$u" || { echo "restart $u failed (sudoers line for it?)" >&2; return 1; }
+    # a release that crashed in a loop leaves the unit start-limited: restart is refused until reset
+    sudo -n systemctl reset-failed "$u" 2> /dev/null || true
+    sudo -n systemctl restart "$u" || { echo "restart $u failed (journalctl -u $u; a sudoers line for it?)" >&2; return 1; }
   done
 }
 healthy() {

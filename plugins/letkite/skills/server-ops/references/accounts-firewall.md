@@ -57,7 +57,7 @@ One line, exact commands only, checked before it is installed:
 
 ```
 cat > /etc/sudoers.d/myapp-deploy <<'EOF'
-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart myapp.service, /usr/bin/systemctl status myapp.service
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart myapp.service, /usr/bin/systemctl reset-failed myapp.service, /usr/bin/systemctl status myapp.service
 EOF
 chmod 440 /etc/sudoers.d/myapp-deploy
 visudo -cf /etc/sudoers.d/myapp-deploy
