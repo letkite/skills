@@ -51,6 +51,7 @@ esac; done
 BASE="${BASE:-/srv/$APP}"
 REL="$BASE/releases"
 mkdir -p "$REL"
+cd "$BASE"   # run from anywhere: sudo -u deploy from /root would leave find in a directory it cannot read
 
 live() { readlink -f "$BASE/current" 2> /dev/null || true; }
 switch_to() {   # atomic: a new link, renamed over the old one
