@@ -10,7 +10,7 @@ The person does this once per server, as root, on the server itself (the provide
    useradd --create-home --shell /bin/bash deploy
    ```
 
-   Not decided yet? Skip it. The account can be chosen later (step 4).
+   Not decided yet? Skip it. The account can be chosen later (item 4).
 
 2. **Run the official installer as root:**
 

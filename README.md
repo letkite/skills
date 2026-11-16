@@ -6,6 +6,7 @@
 |---|---|
 | [`worker-pool`](plugins/letkite/skills/worker-pool/SKILL.md) | Build and run a pool of headless Claude Code workers on your machines: pick a layout per host (VM, container or account per worker), enroll them in LetKite, sign in Claude Code, connect each worker back to LetKite, optional GitHub, then dispatch tasks. |
 | [`dev-env`](plugins/letkite/skills/dev-env/SKILL.md) | Set up a developer environment on a node after it joins LetKite, choosing each piece: git identity; GitHub by CLI sign-in, by a token in a LetKite environment variable (nothing on disk), by a stored token or by SSH key; GitLab, GitCode or Gitea tokens; Claude Code; OpenCode; connecting Claude Code or OpenCode to LetKite with their own authorization. |
+| [`server-ops`](plugins/letkite/skills/server-ops/SKILL.md) | Deploy an app to a server and keep it running, choosing each piece with the person: accounts and groups by the app's architecture, firewall rules, which account LetKite runs as and whether it may become root, and releases with health checks and rollback. Includes a worked example (a backend service plus its web app), suggestions such as signing in GitHub or Claude Code on the server to run long tasks as jobs, and how to connect a new server to LetKite. |
 
 ## Install
 

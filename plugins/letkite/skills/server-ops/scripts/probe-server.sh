@@ -89,6 +89,7 @@ for t in node python3 java go docker podman caddy nginx psql mysql redis-server;
   case "$t" in
     java) v="$(java -version 2>&1 | head -1)" ;;
     go) v="$(go version 2> /dev/null)" ;;
+    caddy) v="$(caddy version 2> /dev/null | head -1)" ;;
     *) v="$("$t" --version 2> /dev/null | head -1 || echo present)" ;;
   esac
   rt+="$t=${v//[$'\t\r\n']/ }; "

@@ -16,6 +16,8 @@ Run it as the deploy account (the one that owns the app's directory). Layout und
 
   releases/<UTC time>/   one directory per release, never changed after it went live
   current -> releases/…  what the services run (their WorkingDirectory / ExecStart point here)
+  failed/<UTC time>/     the last release that failed its health check (moved out of releases/,
+                         so --rollback never goes back to it)
 
   --app NAME       the app's name; also the default base directory /srv/NAME
   --from DIR       a built release: its contents are copied (without .git) into a new release
@@ -115,7 +117,16 @@ case "$MODE" in
     mv "$new.tmp" "$new"
     echo "release: $(basename "$new")"
     before="$(live)"
-    if ! go_live "$new" "$before"; then exit 1; fi
+    if ! go_live "$new" "$before"; then
+      # out of releases/, so --rollback never picks it; the latest failure is kept for a look
+      if [[ "$(live)" != "$new" ]]; then
+        mkdir -p "$BASE/failed"
+        find "$BASE/failed" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+        mv "$new" "$BASE/failed/"
+        echo "the failed release is in $BASE/failed/$(basename "$new")" >&2
+      fi
+      exit 1
+    fi
     # keep the newest KEEP, the live one always among them
     find "$REL" -mindepth 1 -maxdepth 1 -type d ! -name '*.tmp' | sort | head -n "-$KEEP" | while read -r d; do
       [[ "$d" == "$(live)" ]] || rm -rf -- "$d"
