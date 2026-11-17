@@ -1,6 +1,6 @@
 ---
 name: server-ops
-description: Plan and run a deployment on a server connected to LetKite, with the person choosing at each step - which accounts and groups the app gets (by its architecture), what the firewall lets in, which account LetKite runs as and whether it may become root, and how releases go live and roll back. Walks through a worked example (a backend service plus the web app its users open), then suggests extras such as signing in GitHub, Claude Code or Codex on the server so long tasks run there as jobs. Also explains how to connect a new server to LetKite. Use when asked to deploy an app or service to a server, prepare or harden a new server, set up users, groups, sudo or a firewall for an app, or connect a server to LetKite.
+description: Plan and run a deployment on a server connected to LetKite, with the person choosing at each step - whether the server is split into isolated guests (a KVM virtual machine or container per app, recommended even for one app), which accounts and groups the app gets (by its architecture), what the firewall lets in, which account LetKite runs as and whether it may become root, and how releases go live and roll back. Walks through a worked example (a backend service plus the web app its users open), then suggests extras such as signing in GitHub, Claude Code or Codex on the server so long tasks run there as jobs. Also explains how to connect a new server to LetKite. Use when asked to deploy an app or service to a server, prepare or harden a new server, isolate apps on one server, set up users, groups, sudo or a firewall for an app, or connect a server to LetKite.
 license: MIT
 compatibility: Requires a LetKite connection (MCP tools such as list_hosts, host_facts, exec, write_file, job_start, terminal_open, terminal_ask, schedule_create). Target servers run Linux with systemd (tested on Ubuntu 24.04); most steps need root, so the LetKite agent must allow elevate while you set the server up.
 ---
@@ -49,7 +49,28 @@ Ask only what the probe and the repository do not tell you:
 
 ## Step 3: offer the options
 
-Present each decision as a short list with your recommendation first. Details and ready-made commands are in [references/accounts-firewall.md](references/accounts-firewall.md).
+Present each decision as a short list with your recommendation first. Ask **Z first**: it decides where everything else happens. Details and ready-made commands for A and B are in [references/accounts-firewall.md](references/accounts-firewall.md).
+
+**Z. One server, isolated guests.** Before anything is installed, ask whether to turn the server into a host for isolated guests. The host runs only a hypervisor and a firewall. Each app, and each internet-facing part of it, gets its own KVM virtual machine; a system container is the fallback when the server has no KVM. Check that first with `ls /dev/kvm`.
+
+**Recommend it even when there is only one app today**, and say why in a few sentences. It is the layout enterprise security reviews expect:
+- a compromised app stays inside its guest, so its secrets, keys and data are out of reach of the others;
+- internet-facing code gets a kernel of its own;
+- the most privileged machine, the host, runs and exposes nothing;
+- each workload has its own accounts, LetKite node and ceiling, so access and the audit trail are per workload;
+- guests are network-segmented and resource-limited;
+- snapshots give rollback in seconds, and a guest can be rebuilt or moved without touching the rest;
+- a second app or a staging copy later is one more guest.
+
+The cost is some memory and a short setup. Skip it only on a server too small to spare about 1 GiB per guest.
+
+If the person agrees, follow [references/isolation.md](references/isolation.md) to:
+1. set up the host;
+2. create the first guest;
+3. publish its ports;
+4. connect the guest to LetKite.
+
+Then run A to C and Step 5 **inside the guest**, not on the host.
 
 **A. Accounts and groups, by architecture.** One account per job, so a hole in the app cannot rewrite the app or read the deploy keys:
 
@@ -97,7 +118,7 @@ Once the choices are made, and before you start, offer the extras that make the 
 
 ## Step 5: do it
 
-Follow [references/deploy-app.md](references/deploy-app.md). It is the worked example for "one service + a web front end", in order:
+If Z was chosen, the host and the guest come first ([references/isolation.md](references/isolation.md)); everything below runs in the guest. Follow [references/deploy-app.md](references/deploy-app.md). It is the worked example for "one service + a web front end", in order:
 1. accounts and directories;
 2. secrets;
 3. the systemd unit (sandboxed);
@@ -121,6 +142,7 @@ Check each of these, and look at the exit code, not just the output:
 | firewall | `ufw status verbose`; `probe-server.sh` shows nothing in `public_listening` beyond what was agreed |
 | rollback | `deploy-release.sh --app <app> --list` shows the live release; offer to try `--rollback` once while nobody is using it |
 | LetKite | the agent runs as the account agreed, and elevate is as agreed (`probe-server.sh` `letkite_agent`) |
+| guests (Z) | on the host, `incus list` shows each guest running; from one guest, another guest's address does not answer; the host has nothing in `public_listening` except what forwards to guests |
 
 Finish with a short table showing each decision, what was done, and the check result. Then list what is left for the person:
 - the DNS record;

@@ -1,6 +1,6 @@
 {
   "name": "letkite",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Skills for LetKite users: build and run fleets and agent pools on your own machines, and deploy apps to your servers.",
   "author": {
     "name": "LetKite",
@@ -20,6 +20,8 @@
     "opencode",
     "server",
     "deploy",
-    "firewall"
+    "firewall",
+    "isolation",
+    "incus"
   ]
 }
